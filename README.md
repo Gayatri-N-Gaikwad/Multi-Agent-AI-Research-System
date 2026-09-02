@@ -1,35 +1,42 @@
 # ResearchMind: Multi-Agent AI Research System
 
-**ResearchMind** is an autonomous multi-agent AI research pipeline built using LangChain, Google's Gemini 2.5 Flash, and the Tavily Search API. It automates web retrieval, data scraping, and content synthesis by orchestrating specialized agents and chains to write and evaluate comprehensive, structured research reports.
+**ResearchMind** is an autonomous multi-agent AI research pipeline built using LangChain, Google Gemini 2.5 Flash, and the Tavily Search API. It automates web retrieval, multi-source data scraping, report drafting, and iterative reflection loops to produce comprehensive, verified research reports.
 
 ---
 
 ## 🚀 Key Features
-- **Multi-Agent Orchestration**: Sequential coordination of specialized agents and chains using LangChain.
-- **Tavily Web Search**: Fast, reliable, and verified web search retrieval.
-- **Deep Scraping**: Automated content extraction and cleaning from the most relevant search results using BeautifulSoup.
-- **Automated Critique (LLM Judge)**: A dedicated critic evaluates drafts, provides constructive feedback, and scores them.
-- **Modern UI**: A fully interactive Streamlit web dashboard.
-- **CLI Mode**: Run research pipelines directly from the terminal.
+
+- **Multi-Agent & Chain Orchestration**: Sequential coordination of specialized search agents, deterministic scrapers, writer chains, and critic/revision reflection loops.
+- **Tavily Web Search**: Fast, reliable, and verified web search retrieval with lossless URL extraction from raw tool messages.
+- **Multi-Source Scraping**: Deterministic content extraction and cleaning from multiple top search URLs using BeautifulSoup with structured source labeling (`SOURCE 1`, `SOURCE 2`, etc.).
+- **Iterative Reflection & Revision Loop**: An automated LLM Judge (Critic Chain) scores reports and triggers a Revision Chain if the quality score is below threshold (`SCORE_THRESHOLD = 8`), addressing specific critique points over multiple attempts (`MAX_RETRIES = 2`).
+- **Strict Anti-Hallucination Prompting**: Enforced constraints ensuring URLs and facts are strictly derived from gathered research without fabrication.
+- **Interactive UI & CLI Modes**: Run pipelines via a modern Streamlit web dashboard or directly from the terminal with optional CLI arguments.
 
 ---
 
 ## 🛠️ Architecture and Workflow
 
-The system is structured as a sequential pipeline with four main phases:
-
 ```
-┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
-│  01. Search     │      │   02. Reader    │      │   03. Writer    │      │   04. Critic    │
-│     Agent       ├─────►│      Agent      ├─────►│     Chain       ├─────►│     Chain       │
-│ (Tavily Search) │      │ (BeautifulSoup) │      │ (Gemini Draft)  │      │ (LLM Evaluator) │
-└─────────────────┘      └─────────────────┘      └─────────────────┘      └─────────────────┘
+┌─────────────────┐      ┌─────────────────────────┐      ┌─────────────────┐      ┌─────────────────────────┐
+│  01. Search     │      │  02. Multi-Source       │      │   03. Writer    │      │  04. Critic & Revision  │
+│     Agent       ├─────►│      Scraper            ├─────►│     Chain       ├─────►│     Reflection Loop     │
+│ (Tavily Search) │      │ (Deterministic Scraping)│      │ (Gemini Draft)  │      │ (Score & Self-Correction)│
+└─────────────────┘      └─────────────────────────┘      └─────────────────┘      └────────────┬────────────┘
+                                                                                                │ (Score < 8)
+                                                                                                ▼
+                                                                                   ┌─────────────────────────┐
+                                                                                   │     Revision Chain      │
+                                                                                   │ (Addresses Critique)    │
+                                                                                   └─────────────────────────┘
 ```
 
-1. **Search Agent (Tavily Search API)**: Gathers titles, URLs, and snippets of top 5 web results for a given query.
-2. **Reader Agent (Requests & BeautifulSoup)**: Selects the most relevant URL from search results and extracts up to 3,000 characters of clean text.
-3. **Writer Chain (LLM Writer)**: Synthesizes a structured markdown report including an Introduction, Key Findings (minimum of 3), a Conclusion, and a sources list.
-4. **Critic Chain (LLM Judge)**: Evaluates the draft report, providing a score (out of 10), list of strengths, areas to improve, and a one-line verdict.
+1. **Search Agent (Tavily Search API)**: Gathers titles, URLs, and snippets of top web results. Raw `ToolMessage` outputs are extracted directly to prevent losing authentic URLs.
+2. **Deterministic Multi-Source Scraper (Requests & BeautifulSoup)**: Parses the top search URLs (up to 3) and deterministically scrapes and cleans full-text content into labeled source sections.
+3. **Writer Chain (LLM Writer)**: Synthesizes a structured report containing an Introduction, Key Findings (with source attribution), a Conclusion, and a Sources section matching the retrieved URLs.
+4. **Critic & Reflection Loop (LLM Evaluator & Reviser)**: 
+   - Evaluates the report and assigns a score (`Score: X/10`), strengths, areas to improve, and a verdict.
+   - If the score is below `SCORE_THRESHOLD` (8/10), it invokes the **Revision Chain** with the critique and research to produce a revised draft (up to `MAX_RETRIES` iterations).
 
 ---
 
@@ -38,13 +45,14 @@ The system is structured as a sequential pipeline with four main phases:
 ```bash
 multi_agent_system/
 │
-├── agents.py          # Sets up the Gemini LLM, Search/Reader agents, and Writer/Critic chains
-├── app.py             # Streamlit web application interface
-├── pipeline.py        # CLI entry point to run the research pipeline
+├── agents.py          # LLM setup, Search/Reader agents, Writer, Critic, and Revision chains
+├── app.py             # Streamlit interactive web dashboard
+├── pipeline.py        # CLI orchestration pipeline with reflection loop and argument support
 ├── tools.py           # Custom LangChain tools for Tavily Search and web scraping
+├── utils.py           # Helper utilities for tool message extraction, URL parsing, multi-scraping, and score parsing
 ├── requirements.txt   # Project dependencies
 ├── .env.example       # Example environment configuration file
-└── .gitignore         # Prevents tracking virtual environments, caches, and secrets
+└── .gitignore         # Ignores virtual environments, cache files, and secrets
 ```
 
 ---
@@ -75,7 +83,7 @@ pip install -r requirements.txt
 ```
 
 ### 4. Configure Environment Variables
-Create a `.env` file in the root directory (you can copy `.env.example` if it exists) and add your API keys:
+Create a `.env` file in the root directory and configure your API keys:
 ```env
 GOOGLE_API_KEY=your_gemini_api_key_here
 TAVILY_API_KEY=your_tavily_api_key_here
@@ -86,15 +94,26 @@ TAVILY_API_KEY=your_tavily_api_key_here
 ## 🚦 How to Run
 
 ### Command Line Interface (CLI)
-Run the pipeline directly from your terminal:
+Run the research pipeline directly from your terminal:
+
+**With argument:**
+```bash
+python pipeline.py "Quantum computing breakthroughs"
+```
+
+**Interactive mode:**
 ```bash
 python pipeline.py
 ```
-*You will be prompted to enter a research topic, and the step-by-step progress and final report will print to the console.*
 
 ### Interactive Web UI (Streamlit)
-To run the graphical user interface:
+To launch the graphical dashboard:
 ```bash
 streamlit run app.py
 ```
-*This opens a browser tab with a beautiful dark-mode interface where you can enter topics, watch agents run live, read & download reports, and view the critic's verdict.*
+
+### Running Utility Tests
+To verify URL extraction logic:
+```bash
+python -c "from utils import extract_urls_from_search; print(extract_urls_from_search('URL: https://example.com\nURL: https://test.com'))"
+```

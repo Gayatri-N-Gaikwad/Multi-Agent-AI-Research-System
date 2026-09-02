@@ -1,6 +1,7 @@
 import streamlit as st
 import time
 from agents import build_reader_agent, build_search_agent, writer_chain, critic_chain
+from utils import extract_tool_outputs, extract_urls_from_search, scrape_multiple
 
 st.set_page_config(
     page_title="ResearchMind · AI Research Agent",
@@ -431,20 +432,16 @@ if st.session_state.running and not st.session_state.done:
         sr = search_agent.invoke({
             "messages": [("user", f"Find recent, reliable and detailed information about: {topic_val}")]
         })
-        results["search"] = sr["messages"][-1].content
+        results["search"] = extract_tool_outputs(sr)
         st.session_state.results = dict(results)
     st.rerun() if False else None
 
     with st.spinner("📄  Reader Agent is scraping top resources…"):
-        reader_agent = build_reader_agent()
-        rr = reader_agent.invoke({
-            "messages": [("user",
-                f"Based on the following search results about '{topic_val}', "
-                f"pick the most relevant URL and scrape it for deeper content.\n\n"
-                f"Search Results:\n{results['search'][:800]}"
-            )]
-        })
-        results["reader"] = rr["messages"][-1].content
+        urls = extract_urls_from_search(results["search"], max_urls=3)
+        if not urls:
+            results["reader"] = "No additional sources could be scraped."
+        else:
+            results["reader"] = scrape_multiple(urls)
         st.session_state.results = dict(results)
 
     with st.spinner("✍️  Writer is drafting the report…"):

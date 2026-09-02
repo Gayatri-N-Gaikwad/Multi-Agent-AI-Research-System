@@ -46,7 +46,9 @@ Structure the report as:
 - Introduction
 - Key Findings (minimum 3 well-explained points)
 - Conclusion
-- Sources (list all URLs found in the research)
+- Sources (list ONLY the URLs that literally appear in the research above, exactly as written)
+
+Rules: Do not invent, guess, or reconstruct any URL. If a claim has no source URL available, state that explicitly instead of fabricating one. Where possible, note which source (SOURCE 1, SOURCE 2, etc.) supports each key finding.
 
 Be detailed, factual and professional."""),
 ])
@@ -79,3 +81,36 @@ One line verdict:
 ])
 
 critic_chain = critic_prompt | llm | StrOutputParser()
+
+#revision_chain
+
+revision_prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are an expert research writer revising a report based on editorial feedback."),
+    ("human", """You are revising a research report on the topic: {topic}.
+
+Previous Report:
+{previous_report}
+
+Editorial Critique:
+{critique}
+
+Research Gathered:
+{research}
+
+Please revise the report to address the areas to improve mentioned in the critique.
+Keep the same 4-section structure:
+- Introduction
+- Key Findings (minimum 3 well-explained points)
+- Conclusion
+- Sources (list ONLY the URLs that literally appear in the research above, exactly as written)
+
+Rules:
+1. Revise the previous report to address the critique's "Areas to Improve".
+2. Use the research gathered for extra detail.
+3. Do not invent, guess, or reconstruct any URL. If a claim has no source URL available, state that explicitly instead of fabricating one. Where possible, note which source (SOURCE 1, SOURCE 2, etc.) supports each key finding.
+4. Output ONLY the revised report with no meta-commentary.
+""")
+])
+
+revision_chain = revision_prompt | llm | StrOutputParser()
+
