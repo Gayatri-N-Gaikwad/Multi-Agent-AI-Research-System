@@ -1,42 +1,48 @@
-# ResearchMind: Multi-Agent AI Research System
+# ResearchMind: Autonomous Multi-Agent AI Research System
 
-**ResearchMind** is an autonomous multi-agent AI research pipeline built using LangChain, Google Gemini 2.5 Flash, and the Tavily Search API. It automates web retrieval, multi-source data scraping, report drafting, and iterative reflection loops to produce comprehensive, verified research reports.
+**ResearchMind** is an enterprise-grade autonomous multi-agent research and synthesis engine built with **LangChain**, **Google Gemini 2.5 Flash**, and the **Tavily Search API**. 
 
----
-
-## 🚀 Key Features
-
-- **Multi-Agent & Chain Orchestration**: Sequential coordination of specialized search agents, deterministic scrapers, writer chains, and critic/revision reflection loops.
-- **Tavily Web Search**: Fast, reliable, and verified web search retrieval with lossless URL extraction from raw tool messages.
-- **Multi-Source Scraping**: Deterministic content extraction and cleaning from multiple top search URLs using BeautifulSoup with structured source labeling (`SOURCE 1`, `SOURCE 2`, etc.).
-- **Iterative Reflection & Revision Loop**: An automated LLM Judge (Critic Chain) scores reports and triggers a Revision Chain if the quality score is below threshold (`SCORE_THRESHOLD = 8`), addressing specific critique points over multiple attempts (`MAX_RETRIES = 2`).
-- **Strict Anti-Hallucination Prompting**: Enforced constraints ensuring URLs and facts are strictly derived from gathered research without fabrication.
-- **Interactive UI & CLI Modes**: Run pipelines via a modern Streamlit web dashboard or directly from the terminal with optional CLI arguments.
+Instead of relying on a single one-shot LLM prompt (which often suffers from hallucinations, dropped source links, and shallow analysis), ResearchMind decomposes research into specialized agents and chains orchestrated with an **automated Critic-in-the-loop reflection architecture**.
 
 ---
 
-## 🛠️ Architecture and Workflow
+## 🚀 Key Architectural Highlights
+
+- **Dynamic Agentic Search**: Autonomous Search Agent leveraging Google Gemini 2.5 Flash and Tavily Search API to find live, verified web sources.
+- **Lossless Citation Extraction**: Extracts raw `ToolMessage` payloads directly from agent execution history, preventing URLs and citations from getting silently lost in LLM summaries.
+- **Deterministic Multi-Source Scraper**: High-performance BeautifulSoup scraper that extracts and cleans body text from top search results while stripping boilerplate (`<script>`, `<style>`, `<nav>`, `<footer>`).
+- **Strict Anti-Fabrication Prompting**: Enforced prompt constraints ensuring all factual claims and URLs are derived exclusively from verified research without hallucinations.
+- **Automated LLM Judge (Critic Chain)**: Evaluates research drafts against a 4-pillar rubric (*Citation Grounding*, *Analytical Rigor*, *Temporal Grounding*, and *Structure*), returning a numerical score (`Score: X/10`).
+- **Iterative Reflection & Self-Correction**: When a draft scores below the threshold (`SCORE_THRESHOLD = 8`), an automated revision chain refines the draft based on editorial critique (capped at `MAX_RETRIES = 2`).
+- **Multi-Interface Deployment**: Supports interactive **Streamlit UI**, command-line **CLI**, headless **Flask/Gunicorn REST API**, and **Docker** containerization.
+
+---
+
+## 🛠️ Architecture & Workflow
 
 ```
-┌─────────────────┐      ┌─────────────────────────┐      ┌─────────────────┐      ┌─────────────────────────┐
-│  01. Search     │      │  02. Multi-Source       │      │   03. Writer    │      │  04. Critic & Revision  │
-│     Agent       ├─────►│      Scraper            ├─────►│     Chain       ├─────►│     Reflection Loop     │
-│ (Tavily Search) │      │ (Deterministic Scraping)│      │ (Gemini Draft)  │      │ (Score & Self-Correction)│
-└─────────────────┘      └─────────────────────────┘      └─────────────────┘      └────────────┬────────────┘
-                                                                                                │ (Score < 8)
-                                                                                                ▼
-                                                                                   ┌─────────────────────────┐
-                                                                                   │     Revision Chain      │
-                                                                                   │ (Addresses Critique)    │
-                                                                                   └─────────────────────────┘
-```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 RESEARCHMIND PIPELINE                                  │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 
-1. **Search Agent (Tavily Search API)**: Gathers titles, URLs, and snippets of top web results. Raw `ToolMessage` outputs are extracted directly to prevent losing authentic URLs.
-2. **Deterministic Multi-Source Scraper (Requests & BeautifulSoup)**: Parses the top search URLs (up to 3) and deterministically scrapes and cleans full-text content into labeled source sections.
-3. **Writer Chain (LLM Writer)**: Synthesizes a structured report containing an Introduction, Key Findings (with source attribution), a Conclusion, and a Sources section matching the retrieved URLs.
-4. **Critic & Reflection Loop (LLM Evaluator & Reviser)**: 
-   - Evaluates the report and assigns a score (`Score: X/10`), strengths, areas to improve, and a verdict.
-   - If the score is below `SCORE_THRESHOLD` (8/10), it invokes the **Revision Chain** with the critique and research to produce a revised draft (up to `MAX_RETRIES` iterations).
+ 1. USER INPUT           2. DYNAMIC RETRIEVAL               3. DEEP EXTRACTION
+ ┌─────────────┐        ┌────────────────────────┐         ┌────────────────────────┐
+ │ Topic Query │───────►│  Search Agent (Tavily) │────────►│ Multi-Source Scraper   │
+ └─────────────┘        │  Raw ToolMessage Parse │         │ (BeautifulSoup Clean)  │
+                        └────────────────────────┘         └───────────┬────────────┘
+                                                                       │
+ 6. PRODUCTION-READY REPORT         5. REFLECTION LOOP                 │ 4. SYNTHESIS
+ ┌──────────────────────┐        ┌─────────────────────────┐           ▼
+ │ Final Verified Report│◄───────┤ Critic: Automated Judge │◄──────────────────────┐
+ │ (Scored ≥ 8 / Max)   │ (Pass) │ Evaluates 4 Rubrics     │   Writer Chain        │
+ └──────────────────────┘        └───────────┬─────────────┘   (Drafts Synthesis)  │
+                                             │ (Score < 8)             ▲
+                                             ▼                         │
+                                 ┌─────────────────────────┐           │
+                                 │ Revision Chain          ├───────────┘
+                                 │ (Applies Critique Diff) │
+                                 └─────────────────────────┘
+```
 
 ---
 
@@ -45,19 +51,22 @@
 ```bash
 multi_agent_system/
 │
-├── agents.py          # LLM setup, Search/Reader agents, Writer, Critic, and Revision chains
-├── app.py             # Streamlit interactive web dashboard
-├── pipeline.py        # CLI orchestration pipeline with reflection loop and argument support
-├── tools.py           # Custom LangChain tools for Tavily Search and web scraping
-├── utils.py           # Helper utilities for tool message extraction, URL parsing, multi-scraping, and score parsing
-├── requirements.txt   # Project dependencies
-├── .env.example       # Example environment configuration file
+├── agents.py          # LLM initialization, Search Agent, Reader, Writer & Critic chains
+├── app.py             # Streamlit interactive dashboard with live step progress cards
+├── flask_app.py       # Headless REST API (/health, /api/research)
+├── pipeline.py        # Core orchestration engine (run_research_pipeline & CLI main)
+├── tools.py           # Custom LangChain tools (Tavily search & BeautifulSoup scraper)
+├── utils.py           # Extractors for tool outputs, URL parsers, and score extractors
+├── Dockerfile         # Production multi-stage container setup with healthcheck
+├── .dockerignore      # Docker build context optimizations
+├── requirements.txt   # Python dependencies (LangChain, Flask, Gunicorn, Streamlit)
+├── .env.example       # Template for environment configuration
 └── .gitignore         # Ignores virtual environments, cache files, and secrets
 ```
 
 ---
 
-## ⚙️ Prerequisites and Setup
+## ⚙️ Prerequisites & Setup
 
 ### 1. Clone & Navigate
 ```bash
@@ -65,14 +74,13 @@ git clone https://github.com/Gayatri-N-Gaikwad/Multi-Agent-AI-Research-System.gi
 cd Multi-Agent-AI-Research-System
 ```
 
-### 2. Set Up Virtual Environment
-Create and activate a virtual environment:
+### 2. Set Up Python Virtual Environment
 ```bash
 # Windows
 python -m venv .venv
 .venv\Scripts\activate
 
-# macOS/Linux
+# macOS / Linux
 python3 -m venv .venv
 source .venv/bin/activate
 ```
@@ -83,37 +91,87 @@ pip install -r requirements.txt
 ```
 
 ### 4. Configure Environment Variables
-Create a `.env` file in the root directory and configure your API keys:
+Create a `.env` file in the root directory:
 ```env
 GOOGLE_API_KEY=your_gemini_api_key_here
 TAVILY_API_KEY=your_tavily_api_key_here
+GEMINI_MODEL=gemini-2.5-flash
+PORT=5000
 ```
 
 ---
 
-## 🚦 How to Run
+## 🚦 Execution Modes
 
-### Command Line Interface (CLI)
-Run the research pipeline directly from your terminal:
+### 1. Command Line Interface (CLI)
+Run the pipeline directly from your terminal:
 
-**With argument:**
 ```bash
+# Direct topic argument
 python pipeline.py "Quantum computing breakthroughs"
-```
 
-**Interactive mode:**
-```bash
+# Interactive prompt mode
 python pipeline.py
 ```
 
-### Interactive Web UI (Streamlit)
-To launch the graphical dashboard:
+---
+
+### 2. Headless REST API (Flask / Gunicorn)
+Run as a standalone microservice:
+
+```bash
+python flask_app.py
+```
+
+#### Health Check
+```bash
+curl http://localhost:5000/health
+# Response: {"status": "ok"}
+```
+
+#### Submit Research Request
+```bash
+curl -X POST http://localhost:5000/api/research \
+  -H "Content-Type: application/json" \
+  -d '{"topic": "Quantum computing breakthroughs"}'
+```
+
+---
+
+### 3. Interactive Web Dashboard (Streamlit)
+Launch the rich visual UI with real-time pipeline monitoring and markdown export:
+
 ```bash
 streamlit run app.py
 ```
 
-### Running Utility Tests
-To verify URL extraction logic:
+---
+
+### 4. Docker Containerization
+Build and deploy the isolated service container:
+
 ```bash
-python -c "from utils import extract_urls_from_search; print(extract_urls_from_search('URL: https://example.com\nURL: https://test.com'))"
+# Build image
+docker build -t researchmind-ai .
+
+# Run container with environment variables
+docker run -d -p 5000:5000 --env-file .env --name researchmind researchmind-ai
 ```
+
+---
+
+## 🌐 Enterprise Multi-Service Architecture
+
+ResearchMind is designed to run behind a **Spring Boot 3.x Reactive Gateway (WebFlux Netty)** inside a shared Docker network (`research-network`):
+
+- **API Gateway (`:8080`)**: Non-blocking public endpoint with a 200s timeout handling client traffic.
+- **AI Engine (`:5000`)**: Containerized Python service executing LLM agent chains and deterministic web scrapers.
+- **Memory Optimized**: JVM configured with `-Xmx256m -Xss256k` and Python slim image, enabling deployment on a single \$0 AWS free-tier `t2.micro` or `t3.micro` EC2 instance.
+
+---
+
+## 📜 License & Author
+
+- **Author**: Gayatri Gaikwad
+- **Repository**: [Multi-Agent-AI-Research-System](https://github.com/Gayatri-N-Gaikwad/Multi-Agent-AI-Research-System)
+- **License**: MIT License
