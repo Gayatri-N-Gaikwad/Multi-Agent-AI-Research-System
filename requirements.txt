@@ -34,8 +34,9 @@ orjson>=3.9.0
 # Typing support
 pydantic>=2.5.0
 
-# Optional parsing
-html5lib>=1.1
+# Web framework / API
+flask>=3.0.0
+gunicorn>=22.0.0
 
-
+# UI
 streamlit>=1.35.0

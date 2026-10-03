@@ -8,7 +8,17 @@ MAX_RETRIES = 2
 SCORE_THRESHOLD = 8
 MAX_SOURCES = 3
 
-def run_research_pipeline(topic: str) -> dict:
+def run_research_pipeline(topic: str) -> str:
+    """
+    Runs the full pipeline for the given topic and returns the final
+    report as a string. Must not use input() or argparse internally,
+    must not print() the final result — it should return it.
+    Should raise a clear exception on failure rather than silently
+    returning None or an empty string.
+    """
+    if not topic or not isinstance(topic, str) or not topic.strip():
+        raise ValueError("Topic must be a non-empty string.")
+
     state = {}
     
     # Step 1: Search Agent
@@ -18,7 +28,7 @@ def run_research_pipeline(topic: str) -> dict:
     
     search_agent = build_search_agent()
     search_result = search_agent.invoke({
-        "messages" : [("user", f"Find recent, reliable and detailed information about: {topic}")]
+        "messages" : [("user", f"Find recent, reliable and detailed information about: {topic.strip()}")]
     })
     state["search_results"] = extract_tool_outputs(search_result)
     
@@ -51,7 +61,7 @@ def run_research_pipeline(topic: str) -> dict:
     )
     
     state["report"] = writer_chain.invoke({
-        "topic": topic,
+        "topic": topic.strip(),
         "research": research_combined
     })
     
@@ -95,7 +105,7 @@ def run_research_pipeline(topic: str) -> dict:
             
         print(f"\nScore {score} is below threshold {SCORE_THRESHOLD}. Revising report...")
         state["report"] = revision_chain.invoke({
-            "topic": topic,
+            "topic": topic.strip(),
             "previous_report": state["report"],
             "critique": critique,
             "research": research_combined
@@ -103,25 +113,28 @@ def run_research_pipeline(topic: str) -> dict:
         iteration += 1
         
     # Assign last entry's critique and score to feedback and final_score
+    if not state.get("report"):
+        raise RuntimeError("Pipeline failed to generate a research report.")
+
     last_entry = state["revision_history"][-1]
     state["feedback"] = last_entry["critique"]
     state["final_score"] = last_entry["score"]
     
-    return state
+    return state["report"]
 
-if __name__ == "__main__":
+def main():
     import sys
     if len(sys.argv) > 1:
-        topic = " ".join(sys.argv[1:])
+        topic = " ".join(sys.argv[1:]).strip()
     else:
-        topic = input("\n Enter a research topic : ")
-    state = run_research_pipeline(topic)
+        topic = input("\n Enter a research topic : ").strip()
+    
+    report = run_research_pipeline(topic)
     
     print("\n" + "=" * 50)
     print("FINAL RESEARCH REPORT")
     print("=" * 50)
-    print(state["report"])
-    
-    print("\n" + "=" * 50)
-    print(f"Summary: Final Score = {state['final_score']}/10, Attempts = {len(state['revision_history'])}")
-    print("=" * 50)
+    print(report)
+
+if __name__ == "__main__":
+    main()
